@@ -6,5 +6,8 @@ public class Main {
         System.out.println("UID " + config.uid);
         System.out.println("Host Name " + config.host);
         System.out.println("Port " + config.port);
+
+        LeaderElection leaderElection = new LeaderElection(config);
+        leaderElection.start();
     }
 }
