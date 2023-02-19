@@ -4,13 +4,13 @@ import java.util.List;
 import java.util.Map;
 
 public class ConfigParser{
-    public String uid;
+    public Integer UID;
     public String host;
     public Integer port;
     public Map<String, Integer> neighbors = new HashMap<>();
 
     ConfigParser(String[] args) {
-        uid = args[0];
+        UID = Integer.parseInt(args[0]);
         host = args[1];
         port = Integer.parseInt(args[2]);
 
