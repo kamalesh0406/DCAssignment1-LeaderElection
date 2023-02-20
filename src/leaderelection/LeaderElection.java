@@ -1,3 +1,5 @@
+package leaderelection;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -22,6 +24,8 @@ public class LeaderElection {
     public Integer maxUID;
     public Integer numRoundsWithSameUID;
 
+    public boolean leaderElected = false;
+
     LeaderElection(ConfigParser config) {
         this.config = config;
         this.messageQueue = new LinkedBlockingQueue<>();
@@ -36,7 +40,9 @@ public class LeaderElection {
     //Start the Leader Election Algorithm
     public void start() {   
         setupClientAndServerSockets();
-        runLeaderElection();
+//        runLeaderElection();
+
+        generateBFSTree(1047);
     }
 
     public void setupClientAndServerSockets() {
@@ -64,6 +70,7 @@ public class LeaderElection {
                 }
             }
 
+            // from the config.txt file, get the neighbors and it's corresponding output streams
             try {
                 final ObjectOutputStream neighborOutputStream = new ObjectOutputStream(socketToNeighbor.getOutputStream());
                 objectOutputStreams.put(neighborDetails.getKey(), neighborOutputStream);
@@ -73,17 +80,33 @@ public class LeaderElection {
         }
     }
 
+    public void runAlgo() {
+
+        try {
+
+            while(true){
+
+            }
+        }catch (Exception e){
+            System.out.println("Exception occurred");
+        }
+    }
     public void runLeaderElection() {
         Boolean broadcastForCurrRound = false;
+
+        // key = round_no, Value - message queue list
         Map<Integer, List<Message>> roundMessageBuffer = new HashMap<>();
         // We store the max UID we receive from neighbors here.
         Integer neighborMessagesCount = 0;
         Boolean maxUIDChanged = false;
 
+
+
         try {
             // We read messages from the messageQueue until we get the same distance value in three rounds.
             while (true) {
                 if (broadcastForCurrRound == false) {
+                    Message m = new Message(maxUID, currentRound, distance, maxDistance);
                     broadcastMessageToNeighbors(maxUID, currentRound, distance, maxDistance);
                     broadcastForCurrRound = true;
                 }
@@ -141,10 +164,22 @@ public class LeaderElection {
                     maxUIDChanged = false;
                 }
 
-                if (numRoundsWithSameUID==3 && maxUID == config.UID) {
+                /*if (numRoundsWithSameUID==3 && maxUID == config.UID) {
                     System.out.println("I am the leader with UID " + config.UID);
                     System.out.println("Completed Round " + currentRound);
                     System.out.println("Max UID, Distance, Maximum Distance is " + maxUID + " " + distance + " " + maxDistance);
+                }*/
+
+                if (numRoundsWithSameUID==3 ) {
+
+                    if (maxUID == config.UID) {
+                        System.out.println("I am the leader with UID " + config.UID);
+                        System.out.println("Completed Round " + currentRound);
+                        System.out.println("Max UID, Distance, Maximum Distance is " + maxUID + " " + distance + " " + maxDistance);
+                        leaderElected = true;
+                    }
+
+                    generateBFSTree(maxUID);
                 }
             }
         } catch (Exception e) {
@@ -152,6 +187,36 @@ public class LeaderElection {
         }
     }
 
+
+    public void generateBFSTree(int distinguishedNode){
+        System.out.println("Generating BFS Tree with distinguished Node : " + config.UID);
+        if ( distinguishedNode == config.UID ){
+            broadcastMessageToNeighbors(config.UID, currentRound, distance, maxDistance);
+        }
+
+    }
+
+
+    public void broadCastBFSMessage(int uid, int round, int distance, int maxDistance, int parent, int leve, int ack){
+        Message m = new Message(uid, round, distance, maxDistance, parent, leve, ack);
+
+        try {
+            for (ObjectOutputStream outputStream: objectOutputStreams.values()) {
+                outputStream.writeObject(m);
+                outputStream.flush();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Loop through all the object output streams and broadcast the message
+     * @param UID
+     * @param round
+     * @param distance
+     * @param maxDistance
+     */
     public void broadcastMessageToNeighbors(Integer UID, Integer round, Integer distance, Integer maxDistance) {
         try {
             for (ObjectOutputStream outputStream: objectOutputStreams.values()) {
@@ -217,6 +282,7 @@ class ClientHandler implements Runnable {
             e.printStackTrace();
         }
 
+        // Keep accepting message and add it to the Blocking Queue
         while (true) {
             try {
                 Object inputObject = inputStream.readObject();
