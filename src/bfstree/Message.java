@@ -4,6 +4,7 @@ import java.io.Serializable;
 
 public class Message implements Serializable {
 
+
     int uid;
     int round;
     int parent=-2;
@@ -18,6 +19,7 @@ public class Message implements Serializable {
     // 1 = Message from Parent
     // -1 = Message from Child
     int msgType;
+    public boolean completion;
 
     public Message(int uid, boolean tree, int treeLevel){
         this.uid = uid;

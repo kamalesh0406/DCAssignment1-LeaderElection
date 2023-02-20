@@ -99,10 +99,13 @@ public class BFSTree {
         // key = round_no, Value - message queue list
         Map<Integer, List<Message>> roundMessageBuffer = new HashMap<>();
         int parent = -2;
-        List<Integer> childNodes = Collections.emptyList();
+        List<Integer> childNodes = new ArrayList<>(Collections.emptyList());
         int currentNodeTreeLevel = 0;
         boolean parentFound = false;
-        int neighborMessagesCount = 0;
+//        int neighborMessagesCount = 0;
+        // Hashmap to keeps track of the messages from each neighboring node
+        Map<Integer, Integer> ngbrMsg = new HashMap<>();
+        int completedNodes = 0;
 
 
         // For distinguished node - broadcast the message, parentFound = true, parent = -1
@@ -113,7 +116,7 @@ public class BFSTree {
             parent = -1;
             Message m = new Message(uid, currentRound, currentNodeTreeLevel, true);
             m.msgType = 1;
-            broadCastBFSMessage(m);
+            broadCastBFSMessage(m, parent);
         }
 
         try{
@@ -151,37 +154,58 @@ public class BFSTree {
                     roundMessageBuffer.put(incomingMessage.round, currentList);
                 }else{
 
-                    // process the message, can be from
-                    // - non-child
-                    // - child - ACK / NACK
                     if ( !incomingMessage.emptyMessage) {
 
                         // do not increment the count for empty message
                         // empty messages are sent just to have the round count
-                        neighborMessagesCount++;
+//                        neighborMessagesCount++;
+
+                        // incrementing the count of messages received from neighboring nodes
+                        ngbrMsg.put(incomingMessage.uid, ngbrMsg.getOrDefault(incomingMessage.uid, 0) + 1);
+                        currentRound++;
                         currentNodeTreeLevel = incomingMessage.treeLevel + 1;
                         Message replyMessage = new Message(uid, true, currentNodeTreeLevel);
 
+                        // along with parentFound, use message type if it's a message from parent or a reply
+
+                        // When a node receives a message,
+                        // - if parent is not found, it accepts it as parent and sends ACK notification to that node
+                        // - if parent is already found, it just sends ACK notification to that node.
                         if ( !parentFound ){
                             parent = incomingMessage.uid;
-                            replyMessage.ack = 0;
-                            System.out.println("Accepting " + parent + " as parent.");
-                            System.out.println("Broadcasting Message to neighbor nodes");
-                            Message brdMsg = new Message(uid, true, currentNodeTreeLevel);
-                            broadCastBFSMessage(brdMsg);
-                        }else{
                             replyMessage.ack = 1;
+                            System.out.println("Accepting " + parent + " as parent.");
+
+                            // broadcasting should ignore that parent node, as it will send ACK message to that node
+                            System.out.println("Broadcasting Parent Message to neighbor nodes");
+                            Message brdMsg = new Message(uid, true, currentNodeTreeLevel);
+                            broadCastBFSMessage(brdMsg, uid);
+                        }else{
+                            replyMessage.ack = 0;
                         }
+
+                        if ( ! incomingMessage.completion ){
+                            if (incomingMessage.ack == 1){
+                                childNodes.add(incomingMessage.uid);
+                            }
+                        }
+
+                        // Need to write logic for handling the response from child
+                        // if it's accepted the node as parent or not
 
                         sendACKMessage(replyMessage, incomingMessage.uid);
                     }
                 }
 
-                if ( neighborMessagesCount == objectOutputStreams.size()){
+                // First parent sends message and child responds to it
+                // Child sends to parent (considering it to be the child) and responds to it
+                if ( ngbrMsg.size() == objectOutputStreams.size()){
                     System.out.println("Received message from all child nodes");
-                    System.out.println("Parent Node " + parent);
+                    if ( parent == -1 )
+                        System.out.println("I am the root node");
+                    else
+                        System.out.println("Parent Node " + parent);
                     System.out.println("Child Nodes : " + childNodes);
-                    currentRound++;
                 }
 
             }
@@ -204,12 +228,19 @@ public class BFSTree {
     }
 
     // Will broadcast the message to all the neighbor nodes
-    public void broadCastBFSMessage(Message m){
+    public void broadCastBFSMessage(Message m, int exceptUID){
         try{
-            for (ObjectOutputStream outputStream: objectOutputStreams.values()) {
+            /*for (ObjectOutputStream outputStream: objectOutputStreams.values()) {
                 outputStream.writeObject(m);
                 outputStream.flush();
                 outputStream.close();
+            }*/
+            for ( Map.Entry<Integer, ObjectOutputStream> os: objectOutputStreams.entrySet()){
+                if ( exceptUID != -1 && os.getKey() != exceptUID){
+                    os.getValue().writeObject(m);
+                    os.getValue().flush();
+                    os.getValue().close();
+                }
             }
         }catch (Exception e){
             e.printStackTrace();
