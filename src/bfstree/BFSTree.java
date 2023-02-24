@@ -107,23 +107,20 @@ public class BFSTree {
     public void runAlgo(int distNode) {
         System.out.println("Initiating algorithm...");
 
-//        boolean broadcastForCurrRound = false;
-        boolean broadCast = true;
-        // key = round_no, Value - message queue list
-        Map<Integer, List<BFSMessage>> roundMessageBuffer = new HashMap<>();
         int parent = -2;
         Set<Integer> childNodes = new HashSet<>(Collections.emptyList());
         int currentNodeTreeLevel = 0;
         boolean parentFound = false;
 //        int neighborMessagesCount = 0;
         // Hashmap to keeps track of the messages from each neighboring node
+        // Key = node uid, value is the count of messages.
+        // At the end, for every key value should be 2 , since each node would have received a message from parent and have received a message from neighboring node for ACK / NACK
         Map<Integer, Integer> ngbrMsg = new HashMap<>();
         int completedNodesCount = 0;
 
 
-        // For distinguished node - broadcast the message, parentFound = true, parent = -1
-        // rest of the nodes don't broadcast any message.
-        // they will only do it after receiving the first message
+        // Only For distinguished node - broadcast the message
+        // rest of the nodes don't broadcast any message. they will only do it after receiving the first message from parent
         if (distNode == uid) {
             System.out.println("I am distinguished Node. Broadcasting message to all.");
             parentFound = true;
@@ -132,7 +129,6 @@ public class BFSTree {
             m.msgType = 1;
             System.out.println("Broadcasting message :" + m.toString());
             broadCastBFSMessage(m);
-            broadCast = false;
         }
 
         try {
@@ -140,51 +136,25 @@ public class BFSTree {
 
                 BFSMessage incomingBFSMessage;
 
-
-                // For the current round, check if we buffered messages for this round from previous rounds.
-                // If we buffered messages, use them first otherwise choose messages from the message buffer.
-                /*if (roundMessageBuffer.containsKey(currentRound) && roundMessageBuffer.get(currentRound).size()>0) {
-                    incomingBFSMessage = roundMessageBuffer.get(currentRound).remove(0);
-                } else {
-                    incomingBFSMessage = messageQueue.poll();
-                }*/
                 incomingBFSMessage = messageQueue.poll();
 
                 if (incomingBFSMessage == null) {
-//                    System.out.println("Null message. skipping and reading next message");
                     continue;
                 }
 
                 System.out.println("Processing Message :" + incomingBFSMessage);
-                /*if (incomingBFSMessage.round < currentRound) {
-                    System.out.println("The synchronizer does not work properly.");
-//                    throw new Exception("The synchronizer does not work properly.");
-
-                    // If the message is from a future round, we buffer it.
-                } else if (incomingBFSMessage.round > currentRound) {
-                    List<BFSMessage> currentList = roundMessageBuffer.containsKey(incomingBFSMessage.round) ? roundMessageBuffer.get(incomingBFSMessage.round) : new ArrayList<>();
-                    currentList.add(incomingBFSMessage);
-
-                    roundMessageBuffer.put(incomingBFSMessage.round, currentList);
-                }*/
-//                else{
 
                 if (!incomingBFSMessage.completion) {
 
-                    // do not increment the count for empty message
-                    // empty messages are sent just to have the round count
-//                        neighborMessagesCount++;
-
                     // incrementing the count of messages received from neighboring nodes
                     ngbrMsg.put(incomingBFSMessage.uid, ngbrMsg.getOrDefault(incomingBFSMessage.uid, 0) + 1);
-//                        currentRound++;
                     currentNodeTreeLevel = incomingBFSMessage.treeLevel + 1;
                     BFSMessage replyBFSMessage = new BFSMessage(uid, true, currentNodeTreeLevel);
                     replyBFSMessage.round = currentRound;
-                    // along with parentFound, use message type if it's a message from parent or a reply
 
                     // When a node receives a message,
                     // - if parent is not found, it accepts it as parent and sends ACK notification to that node
+                    // - Also, once receiving the first message from parent, it will broadcast message to all the neighboring nodes
                     // - if parent is already found, it just sends ACK notification to that node.
                     if (!parentFound) {
                         parent = incomingBFSMessage.uid;
@@ -207,39 +177,31 @@ public class BFSTree {
 
                     if (incomingBFSMessage.ack == 1) {
                         childNodes.add(incomingBFSMessage.uid);
-//                        System.out.println("Child nodes : " + childNodes);
                     }
-
-                    // Need to write logic for handling the response from child
-                    // if it's accepted the node as parent or not
-
 
                 } else {
                     System.out.println("Child Termination notification received from " + incomingBFSMessage.uid);
                     completedNodesCount++;
-                        /*
-                        if "all child has sent completion notification.":
-                            send the completion notification to parent
-                        * */
+
+                    // Once a node has received terminating message from all it's child
+                    // send completion message
                     if (completedNodesCount == childNodes.size()) {
                         System.out.println("Sending termination message to parent");
                         BFSMessage complMsg = new BFSMessage(uid, true, true);
                         complMsg.round = currentRound;
+                        // Root node will not send terminating message
                         if ( parent != -1)
                             sendMessageToNode(complMsg, parent);
                         break;
                     }
 
                 }
-//                }
 
-                // First parent sends message and child responds to it
-                // Child sends to parent (considering it to be the child) and responds to it
-                // And all neighboring nodes must send 2 messages to the node (one as parent and other as child ACK)
+                // for leaf node terminating message sending criteria
+                // Before sending the terminating message, the node should have received 2 message from all it's neighboring nodes
                 if (ngbrMsg.size() == objectOutputStreams.size()
                         && ngbrMsg.values().stream().reduce(0, Integer::sum) == 2 * objectOutputStreams.size()) {
                     System.out.println("Received message from all child nodes");
-
 
                     // If there are No child nodes, then initiate the termination
                     if (childNodes.size() == 0) {
@@ -275,7 +237,6 @@ public class BFSTree {
             ObjectOutputStream os = objectOutputStreams.get(uid);
             os.writeObject(m);
             os.flush();
-//            os.close();
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -289,16 +250,6 @@ public class BFSTree {
                 outputStream.writeObject(m);
                 outputStream.flush();
             }
-
-            //            for ( Map.Entry<Integer, ObjectOutputStream> os: objectOutputStreams.entrySet()){
-//                // -1 refers to the root node itself
-//                if ( exceptUID == -1 && os.getKey() != exceptUID){
-//                    System.out.println("Writing to " + os.getKey());
-//                    os.getValue().writeObject(m);
-//                    os.getValue().flush();
-//                    os.getValue().close();
-//                }
-//            }
         } catch (Exception e) {
             e.printStackTrace();
         }
