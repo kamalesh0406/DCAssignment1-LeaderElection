@@ -24,16 +24,16 @@ cat $CONFIG_LOCAL | sed -e "s/#.*//" | sed -e "/^\s*$/d" |
     mapfile -t configFile 
 
     totalNodes=${configFile[0]}
-    counter=0
+    counter=1
 
-    while [[ $counter -lt $totalNodes ]]
+    while [[ $counter -lt $((totalNodes+1)) ]]
     do
         line=(${configFile[$((counter))]})
         uid="${line[0]}"
         host="${line[1]}"
         port="${line[2]}"
 
-        uidHostMap[$uid]="$host,$port"
+        uidHostMap[$uid]="$uid,$host,$port"
 
         counter=$((counter + 1))
     done
@@ -44,7 +44,7 @@ cat $CONFIG_LOCAL | sed -e "s/#.*//" | sed -e "/^\s*$/d" |
     # done
     
     i=1
-    while [[ $i -lt $totalNodes ]]
+    while [[ $i -lt $((totalNodes+1)) ]]
     do
     	line=(${configFile[$((i))]})
         uid="${line[0]}"

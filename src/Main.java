@@ -1,6 +1,9 @@
-package leaderelection;
+
 
 import java.util.Arrays;
+
+import leaderelection.LeaderElection;
+import utils.ConfigParser;
 
 public class Main {
     public static void main(String[] args) {

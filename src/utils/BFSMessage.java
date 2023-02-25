@@ -1,24 +1,24 @@
-package bfstree;
+package utils;
 
 import java.io.Serializable;
 
 public class BFSMessage implements Serializable {
 
-
-    int uid;
-    int round;
+    
+    public int uid;
+    public int round;
 //    int parent=-2;
 
     // ACK = 1, Acknowledge
     // ACK = 0, NACK
-    int ack;
-    int treeLevel;
+    public int ack;
+    public int treeLevel;
     boolean tree = false;
     boolean emptyMessage = false;
 
     // 1 = Message from Parent
     // -1 = Message from Child
-    int msgType;
+    public int msgType;
     public boolean completion;
 
     public BFSMessage(int uid, boolean tree, int treeLevel){

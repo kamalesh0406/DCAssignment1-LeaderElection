@@ -8,101 +8,47 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import utils.BFSMessage;
+import utils.ConfigParser;
+import utils.LeaderElectionMessage;
 
 public class BFSTree {
 
     //    public ConfigParser config;
     public BlockingQueue<BFSMessage> messageQueue;
-    private Map<Integer, ObjectOutputStream> objectOutputStreams;
+    private Map<String, ObjectOutputStream> objectOutputStreams;
     public Integer currentRound;
     public Integer distance;
     public Integer maxDistance;
     public Integer maxUID;
     public Integer numRoundsWithSameUID;
-    public int uid;
-    List<Integer> neighbors;
-    Map<Integer, Node> connectionStringMap;
+    public ConfigParser config;
 
     int nodePort;
     int distNode;
 
     public boolean leaderElected = false;
 
-    /*BFSTree(ConfigParser config) {
-        this.config = config;
-        this.messageQueue = new LinkedBlockingQueue<>();
-        this.objectOutputStreams = new HashMap<>();
-        this.distance = 0;
-        this.maxDistance = 0;
+    public BFSTree(ConfigParser configParser, Map<String, ObjectOutputStream> objectOutputStreams, BlockingQueue<BFSMessage> messageQueue) {
+        this.config = configParser;
+        this.objectOutputStreams = objectOutputStreams;
         this.currentRound = 1;
-        this.maxUID = config.UID;
-        this.numRoundsWithSameUID = 0;
-    }*/
-
-
-    public BFSTree(int uid, List<Integer> finalNeighbors, Map<Integer, Node> connectionStringMap, int distNode, int nodePort) {
-        this.uid = uid;
-        this.neighbors = finalNeighbors;
-        this.connectionStringMap = connectionStringMap;
-        this.objectOutputStreams = new HashMap<>();
-        this.currentRound = 1;
-        this.distNode = distNode;
-        this.nodePort = nodePort;
-        this.messageQueue = new LinkedBlockingQueue<>();
+        this.messageQueue = messageQueue;
     }
 
-    public void start() {
-        setupClientAndServerSockets();
+    public void start(Integer distNode) {
+        this.distNode = distNode;
         runAlgo(distNode);
     }
-
-    public void setupClientAndServerSockets() {
-        //We need a server to listen to incoming messages.
-        final SocketListener socketListener = new SocketListener(messageQueue, nodePort);
-        final Thread socketListenerThread = new Thread(socketListener);
-        socketListenerThread.start();
-
-        //We need to create clients for each neighbor to send messages to each of them.
-        for (Map.Entry<Integer, Node> con : connectionStringMap.entrySet()) {
-
-            Socket socketToNeighbor = null;
-
-            // The neighbors server might not have started yet, so we perform a Retry storm with
-            // a 20ms delay until we get connected.
-            while (true) {
-                try {
-                    socketToNeighbor = new Socket(con.getValue().hostName, con.getValue().port);
-                    break;
-                } catch (Exception e) {
-                    try {
-                        Thread.sleep(20);
-                    } catch (InterruptedException e1) {
-                        e1.printStackTrace();
-                    }
-                }
-            }
-
-            System.out.println("Established connection with " + con.getKey());
-            // from the config.txt file, get the neighbors, and it's corresponding output streams
-            try {
-                final ObjectOutputStream neighborOutputStream = new ObjectOutputStream(socketToNeighbor.getOutputStream());
-                objectOutputStreams.put(con.getKey(), neighborOutputStream);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        System.out.println("Established connection with all neighbors");
-        try {
-            Thread.sleep(20);
-        } catch (InterruptedException e1) {
-            e1.printStackTrace();
-        }
-
-    }
-
 
     public void runAlgo(int distNode) {
         System.out.println("Initiating algorithm...");
@@ -111,9 +57,10 @@ public class BFSTree {
         Set<Integer> childNodes = new HashSet<>(Collections.emptyList());
         int currentNodeTreeLevel = 0;
         boolean parentFound = false;
+
 //        int neighborMessagesCount = 0;
         // Hashmap to keeps track of the messages from each neighboring node
-        // Key = node uid, value is the count of messages.
+        // Key = node config.UID, value is the count of messages.
         // At the end, for every key value should be 2 , since each node would have received a message from parent and have received a message from neighboring node for ACK / NACK
         Map<Integer, Integer> ngbrMsg = new HashMap<>();
         int completedNodesCount = 0;
@@ -121,11 +68,11 @@ public class BFSTree {
 
         // Only For distinguished node - broadcast the message
         // rest of the nodes don't broadcast any message. they will only do it after receiving the first message from parent
-        if (distNode == uid) {
+        if (distNode == config.UID) {
             System.out.println("I am distinguished Node. Broadcasting message to all.");
             parentFound = true;
             parent = -1;
-            BFSMessage m = new BFSMessage(uid, currentRound, currentNodeTreeLevel, true);
+            BFSMessage m = new BFSMessage(config.UID, currentRound, currentNodeTreeLevel, true);
             m.msgType = 1;
             System.out.println("Broadcasting message :" + m.toString());
             broadCastBFSMessage(m);
@@ -149,7 +96,7 @@ public class BFSTree {
                     // incrementing the count of messages received from neighboring nodes
                     ngbrMsg.put(incomingBFSMessage.uid, ngbrMsg.getOrDefault(incomingBFSMessage.uid, 0) + 1);
                     currentNodeTreeLevel = incomingBFSMessage.treeLevel + 1;
-                    BFSMessage replyBFSMessage = new BFSMessage(uid, true, currentNodeTreeLevel);
+                    BFSMessage replyBFSMessage = new BFSMessage(config.UID, true, currentNodeTreeLevel);
                     replyBFSMessage.round = currentRound;
 
                     // When a node receives a message,
@@ -164,7 +111,7 @@ public class BFSTree {
                         // broadcasting should ignore that parent node, as it will send ACK message to that node
                         System.out.println("Broadcasting Parent Message to neighbor nodes");
                         sendMessageToNode(replyBFSMessage, incomingBFSMessage.uid);
-                        BFSMessage brdMsg = new BFSMessage(uid, true, currentNodeTreeLevel);
+                        BFSMessage brdMsg = new BFSMessage(config.UID, true, currentNodeTreeLevel);
 //                            currentRound++;
                         brdMsg.round = currentRound;
                         broadCastBFSMessage(brdMsg);
@@ -187,7 +134,7 @@ public class BFSTree {
                     // send completion message
                     if (completedNodesCount == childNodes.size()) {
                         System.out.println("Sending termination message to parent");
-                        BFSMessage complMsg = new BFSMessage(uid, true, true);
+                        BFSMessage complMsg = new BFSMessage(config.UID, true, true);
                         complMsg.round = currentRound;
                         // Root node will not send terminating message
                         if ( parent != -1)
@@ -207,7 +154,7 @@ public class BFSTree {
                     if (childNodes.size() == 0) {
                         System.out.println("Sending Terminating message to parent : " + parent);
 
-                        BFSMessage complMsg = new BFSMessage(uid, true, true);
+                        BFSMessage complMsg = new BFSMessage(config.UID, true, true);
                         complMsg.round = currentRound;
 
                         sendMessageToNode(complMsg, parent);
@@ -234,7 +181,7 @@ public class BFSTree {
     public void sendMessageToNode(BFSMessage m, int uid) {
 
         try {
-            ObjectOutputStream os = objectOutputStreams.get(uid);
+            ObjectOutputStream os = objectOutputStreams.get(config.uidHostMap.get(uid));
             os.writeObject(m);
             os.flush();
         } catch (Exception ex) {
@@ -252,75 +199,6 @@ public class BFSTree {
             }
         } catch (Exception e) {
             e.printStackTrace();
-        }
-    }
-
-}
-
-
-class SocketListener implements Runnable {
-    BlockingQueue<BFSMessage> queue;
-    Integer port;
-
-    SocketListener(BlockingQueue<BFSMessage> queue, Integer port) {
-        this.queue = queue;
-        this.port = port;
-    }
-
-    @Override
-    public void run() {
-        ServerSocket serverSocket = null;
-
-        try {
-            serverSocket = new ServerSocket(port);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        while (true) {
-            try {
-                Socket socket = serverSocket.accept();
-                ClientHandler clientHandler = new ClientHandler(queue, socket);
-                Thread clientHandlerThread = new Thread(clientHandler);
-                clientHandlerThread.start();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-}
-
-class ClientHandler implements Runnable {
-    BlockingQueue<BFSMessage> queue;
-    Socket socket;
-
-    ClientHandler(BlockingQueue<BFSMessage> queue, Socket socket) {
-        this.queue = queue;
-        this.socket = socket;
-    }
-
-    @Override
-    public void run() {
-        ObjectInputStream inputStream = null;
-
-        try {
-            inputStream = new ObjectInputStream(socket.getInputStream());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        // Keep accepting message and add it to the Blocking Queue
-        while (true) {
-            try {
-//                assert inputStream != null;
-                Object inputObject = inputStream.readObject();
-                BFSMessage inMessage = (BFSMessage) inputObject;
-//                System.out.println("Received message " + inMessage.toString());
-                queue.offer(inMessage);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
         }
     }
 
