@@ -3,11 +3,7 @@ package bfstree;
 
 //import leaderelection.ConfigParser;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,15 +11,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-
 import utils.BFSMessage;
 import utils.ConfigParser;
-import utils.LeaderElectionMessage;
 
 public class BFSTree {
 
-    //    public ConfigParser config;
     public BlockingQueue<BFSMessage> messageQueue;
     private Map<String, ObjectOutputStream> objectOutputStreams;
     public Integer currentRound;
@@ -75,7 +67,7 @@ public class BFSTree {
             BFSMessage m = new BFSMessage(config.UID, currentRound, currentNodeTreeLevel, true);
             m.msgType = 1;
             System.out.println("Broadcasting message :" + m.toString());
-            broadCastBFSMessage(m);
+            broadCastBFSMessage(m, null);
         }
 
         try {
@@ -112,13 +104,9 @@ public class BFSTree {
                         System.out.println("Broadcasting Parent Message to neighbor nodes");
                         sendMessageToNode(replyBFSMessage, incomingBFSMessage.uid);
                         BFSMessage brdMsg = new BFSMessage(config.UID, true, currentNodeTreeLevel);
-//                            currentRound++;
                         brdMsg.round = currentRound;
-                        broadCastBFSMessage(brdMsg);
+                        broadCastBFSMessage(brdMsg, incomingBFSMessage.uid);
                         parentFound = true;
-                    } else {
-                        replyBFSMessage.ack = 0;
-                        sendMessageToNode(replyBFSMessage, incomingBFSMessage.uid);
                     }
 
 
@@ -132,7 +120,8 @@ public class BFSTree {
 
                     // Once a node has received terminating message from all it's child
                     // send completion message
-                    if (completedNodesCount == childNodes.size()) {
+                    // The second condition is to gurantee that we have heard back from all of our children.
+                    if (completedNodesCount == childNodes.size() && ngbrMsg.size() == objectOutputStreams.size()) {
                         System.out.println("Sending termination message to parent");
                         BFSMessage complMsg = new BFSMessage(config.UID, true, true);
                         complMsg.round = currentRound;
@@ -147,7 +136,7 @@ public class BFSTree {
                 // for leaf node terminating message sending criteria
                 // Before sending the terminating message, the node should have received 2 message from all it's neighboring nodes
                 if (ngbrMsg.size() == objectOutputStreams.size()
-                        && ngbrMsg.values().stream().reduce(0, Integer::sum) == 2 * objectOutputStreams.size()) {
+                        && ngbrMsg.values().stream().reduce(0, Integer::sum) == objectOutputStreams.size()) {
                     System.out.println("Received message from all child nodes");
 
                     // If there are No child nodes, then initiate the termination
@@ -174,6 +163,7 @@ public class BFSTree {
         System.out.println("Child Nodes : " + childNodes);
 
         System.out.println("End of program");
+        System.exit(0);
     }
 
     // used to send reply (ACK / NACK) specifically to the parent node
@@ -191,9 +181,14 @@ public class BFSTree {
     }
 
     // Will broadcast the message to all the neighbor nodes
-    public void broadCastBFSMessage(BFSMessage m) {
+    public void broadCastBFSMessage(BFSMessage m, Integer ignoreUID) {
         try {
-            for (ObjectOutputStream outputStream : objectOutputStreams.values()) {
+            for (Entry<String, ObjectOutputStream> entrySet: objectOutputStreams.entrySet()) {
+                if (ignoreUID != null & config.uidHostMap.get(ignoreUID) == entrySet.getKey()) {
+                    continue;
+                }
+
+                ObjectOutputStream outputStream = entrySet.getValue();
                 outputStream.writeObject(m);
                 outputStream.flush();
             }

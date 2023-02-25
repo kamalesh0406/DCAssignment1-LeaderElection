@@ -22,7 +22,6 @@ public class ConfigParser{
 
         for (String detail: neighborsDetails) {
             String[] detailArray = detail.split(",");
-            System.out.println(detail);
             neighbors.put(detailArray[1], Integer.parseInt(detailArray[2]));
             uidHostMap.put(Integer.parseInt(detailArray[0]), detailArray[1]);
         }
