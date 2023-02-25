@@ -7,7 +7,7 @@ netid=kxp210004
 PROJECT_DIR=/home/013/k/kx/kxp210004/LeaderElection
 
 # Directory where the config file is located on your local system
-CONFIG_LOCAL=$HOME/Desktop/LeaderElection/config.txt
+CONFIG_LOCAL=$PROJECT_DIR/config.txt
 
 # Directory your java classes are in
 BINARY_DIR=$PROJECT_DIR/bin
@@ -65,11 +65,7 @@ cat $CONFIG_LOCAL | sed -e "s/#.*//" | sed -e "/^\s*$/d" |
 
         echo "Neighbors ${neighbors}"
 	
-        osascript -e '
-                tell app "Terminal"
-                    do script "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no '$netid@$host' java -cp '$BINARY_DIR' '$PROGRAM' '$uid' '$host' '$port' '$neighbors'"
-                end tell'
-
+        gnome-terminal -- ssh ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no '$netid@$host' "cd $PROJDIR; java -cp $BINARY_DIR $PROGRAM $uid $host $port $neighbors; exec bash" &
         i=$(( i + 1 ))
     done
 )
