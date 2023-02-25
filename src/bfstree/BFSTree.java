@@ -1,8 +1,5 @@
 package bfstree;
 
-
-//import leaderelection.ConfigParser;
-
 import java.io.ObjectOutputStream;
 import java.util.Collections;
 import java.util.HashMap;

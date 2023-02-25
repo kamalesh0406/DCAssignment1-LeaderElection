@@ -44,7 +44,7 @@ public class LeaderElection {
         this.numRoundsWithSameUID = 0;
     }
 
-    //Start the Leader Election Algorithm
+    //Start the Leader Election Algorithm and once completed start BFSTree construction.
     public void start() {   
         setupClientAndServerSockets();
         runLeaderElection();
@@ -275,6 +275,8 @@ class ClientHandler implements Runnable {
                 Object inputObject = inputStream.readObject();
 
                 if (!bfsMessageSeen) {
+                    // Since we are maintaining a single connection for both Leader Election and BFS Tree, we create a poison pill message to terminate
+                    // leader election once a node receives a BFS message. 
                     try {
                         LeaderElectionMessage message = (LeaderElectionMessage) inputObject;
                         queue.offer(message);
