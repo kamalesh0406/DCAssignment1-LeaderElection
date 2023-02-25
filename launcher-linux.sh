@@ -65,7 +65,7 @@ cat $CONFIG_LOCAL | sed -e "s/#.*//" | sed -e "/^\s*$/d" |
 
         echo "Neighbors ${neighbors}"
 	
-        gnome-terminal -- ssh ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no '$netid@$host' "cd $PROJDIR; java -cp $BINARY_DIR $PROGRAM $uid $host $port $neighbors; exec bash" &
+        gnome-terminal -- ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no '$netid@$host' "cd $PROJDIR; java -cp $BINARY_DIR $PROGRAM $uid $host $port $neighbors; exec bash" &
         i=$(( i + 1 ))
     done
 )
