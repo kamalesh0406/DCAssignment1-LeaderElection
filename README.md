@@ -6,7 +6,7 @@ Team members: Kamalesh Palanisamy(kxp210004), Vignesh Thirunavukkarasu(vxt200003
 
 ## Testing the code
 - Modify the launcher file with your net id first and copy this entire directory to the dc server. 
-- If you are running it on the dc server/using ubuntu, use the ```launcher-linux.sh``` file. Otherwise, use the ```launcher-macos.sh``` file if you are using macos. Please note that the launcher-linux.sh might fail since we did not have access to linux machines to test it.
+- If you are running it on the dc server directly from your linux machine, use the ```launcher-linux.sh``` file. Otherwise, use the ```launcher-macos.sh``` file if you are using macos. Please note that the launcher-linux.sh might fail since we did not have access to linux machines to test it.
 - Although the bin files are included, they might not work due to version conflicts and platform differences.
 - To compile it, please run ```javac -d ./bin @compilepaths.txt``` and then run ```./launcher-mac.sh``` or ```./launcher-linux.sh```. This should have everything up and running.
 
