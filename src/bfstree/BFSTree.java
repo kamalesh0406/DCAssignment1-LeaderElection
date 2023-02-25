@@ -158,6 +158,8 @@ public class BFSTree {
         else
             System.out.println("Parent Node " + parent);
         System.out.println("Child Nodes : " + childNodes);
+        Integer degree = parent==-1 ? childNodes.size() : (childNodes.size() + 1);
+        System.out.println("The degree of the node is: " + degree);
 
         System.out.println("End of program");
         System.exit(0);

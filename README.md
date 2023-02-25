@@ -2,6 +2,8 @@
 
 This repository contains the implementation of Peleg's leader election algorithm and the construction of a BFS tree with the elected leader node as the root.
 
+Team members: Kamalesh Palanisamy(kxp210004), Vignesh Thirunavukkarasu(vxt200003)
+
 ## Testing the code
 - Modify the launcher file with your net id first and copy this entire directory to the dc server. 
 - If you are running it on the dc server/using ubuntu, use the ```launcher-linux.sh``` file. Otherwise, use the ```launcher-macos.sh``` file if you are using macos. Please note that the launcher-linux.sh might fail since we did not have access to linux machines to test it.
