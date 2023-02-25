@@ -1,3 +1,5 @@
+package utils;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -8,8 +10,9 @@ public class ConfigParser{
     public String host;
     public Integer port;
     public Map<String, Integer> neighbors = new HashMap<>();
+    public Map<Integer, String> uidHostMap = new HashMap<>();
 
-    ConfigParser(String[] args) {
+    public ConfigParser(String[] args) {
         UID = Integer.parseInt(args[0]);
         host = args[1];
         port = Integer.parseInt(args[2]);
@@ -19,7 +22,9 @@ public class ConfigParser{
 
         for (String detail: neighborsDetails) {
             String[] detailArray = detail.split(",");
-            neighbors.put(detailArray[0], Integer.parseInt(detailArray[1]));
+            System.out.println(detail);
+            neighbors.put(detailArray[1], Integer.parseInt(detailArray[2]));
+            uidHostMap.put(Integer.parseInt(detailArray[0]), detailArray[1]);
         }
     }
 

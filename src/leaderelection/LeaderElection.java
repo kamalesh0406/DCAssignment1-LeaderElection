@@ -1,3 +1,5 @@
+package leaderelection;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -11,10 +13,16 @@ import java.util.Map.Entry;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import bfstree.BFSTree;
+import utils.BFSMessage;
+import utils.ConfigParser;
+import utils.LeaderElectionMessage;
+
 
 public class LeaderElection {
     public ConfigParser config;
-    public BlockingQueue<Message> messageQueue;
+    public BlockingQueue<LeaderElectionMessage> messageQueue;
+    public BlockingQueue<BFSMessage> bfsMessageQueue;
     private Map<String, ObjectOutputStream> objectOutputStreams;
     public Integer currentRound;
     public Integer distance;
@@ -22,9 +30,12 @@ public class LeaderElection {
     public Integer maxUID;
     public Integer numRoundsWithSameUID;
 
-    LeaderElection(ConfigParser config) {
+    public boolean leaderElected = false;
+
+    public LeaderElection(ConfigParser config) {
         this.config = config;
         this.messageQueue = new LinkedBlockingQueue<>();
+        this.bfsMessageQueue = new LinkedBlockingQueue<>();
         this.objectOutputStreams = new HashMap<>();
         this.distance = 0;
         this.maxDistance = 0;
@@ -37,11 +48,15 @@ public class LeaderElection {
     public void start() {   
         setupClientAndServerSockets();
         runLeaderElection();
+
+        BFSTree bfs = new BFSTree(config, objectOutputStreams, bfsMessageQueue);
+        bfs.start(maxUID);
+        
     }
 
     public void setupClientAndServerSockets() {
         //We need a server to lisen to incoming messages.
-        final SocketListener socketListener = new SocketListener(messageQueue, config.port);
+        final SocketListener socketListener = new SocketListener(messageQueue, bfsMessageQueue, config.port);
         final Thread socketListenerThread = new Thread(socketListener);
         socketListenerThread.start();
 
@@ -64,6 +79,7 @@ public class LeaderElection {
                 }
             }
 
+            // from the config.txt file, get the neighbors and it's corresponding output streams
             try {
                 final ObjectOutputStream neighborOutputStream = new ObjectOutputStream(socketToNeighbor.getOutputStream());
                 objectOutputStreams.put(neighborDetails.getKey(), neighborOutputStream);
@@ -73,22 +89,38 @@ public class LeaderElection {
         }
     }
 
+    public void runAlgo() {
+
+        try {
+
+            while(true){
+
+            }
+        }catch (Exception e){
+            System.out.println("Exception occurred");
+        }
+    }
     public void runLeaderElection() {
         Boolean broadcastForCurrRound = false;
-        Map<Integer, List<Message>> roundMessageBuffer = new HashMap<>();
+
+        // key = round_no, Value - message queue list
+        Map<Integer, List<LeaderElectionMessage>> roundMessageBuffer = new HashMap<>();
         // We store the max UID we receive from neighbors here.
         Integer neighborMessagesCount = 0;
         Boolean maxUIDChanged = false;
+
+
 
         try {
             // We read messages from the messageQueue until we get the same distance value in three rounds.
             while (true) {
                 if (broadcastForCurrRound == false) {
+                    LeaderElectionMessage m = new LeaderElectionMessage(maxUID, currentRound, distance, maxDistance);
                     broadcastMessageToNeighbors(maxUID, currentRound, distance, maxDistance);
                     broadcastForCurrRound = true;
                 }
 
-                Message incomingMessage;
+                LeaderElectionMessage incomingMessage;
                 // For the current round, check if we buffered messages for this round from previous rounds.
                 // If we buffered messages, use them first otherwise choose messages from the message buffer.
                 if (roundMessageBuffer.containsKey(currentRound) && roundMessageBuffer.get(currentRound).size()>0) {
@@ -100,12 +132,18 @@ public class LeaderElection {
                 if (incomingMessage == null) {
                     continue;
                 }
+                
+                // This means that BFS has started and we get out of the Leader Election algorithm.
+                if (incomingMessage.UID == -1) {
+                    System.out.println("I have completed my Leader Election and received my first BFS message.");
+                    break;
+                }
 
                 if (incomingMessage.round < currentRound) {
                     throw new Exception("The synchronizer does not work properly");
                 // If the message is from a future round, we buffer it.
                 } else if (incomingMessage.round > currentRound) {                    
-                    List<Message> currentList = roundMessageBuffer.containsKey(incomingMessage.round) ? roundMessageBuffer.get(incomingMessage.round) : new ArrayList<>();
+                    List<LeaderElectionMessage> currentList = roundMessageBuffer.containsKey(incomingMessage.round) ? roundMessageBuffer.get(incomingMessage.round) : new ArrayList<>();
                     currentList.add(incomingMessage);
 
                     roundMessageBuffer.put(incomingMessage.round, currentList);
@@ -124,7 +162,7 @@ public class LeaderElection {
                     }
                 }
 
-                if (neighborMessagesCount == config.neighbors.size()) {
+                if (neighborMessagesCount == config.neighbors.size() && neighborMessagesCount < 4) {
                     if (!maxUIDChanged) {
                         numRoundsWithSameUID++;
                     } else {
@@ -134,17 +172,19 @@ public class LeaderElection {
 
                     // System.out.println("Completed Round " + currentRound);
                     // System.out.println("Max UID, Distance, Maximum Distance is " + maxUID + " " + distance + " " + maxDistance);
-
                     currentRound++;
                     broadcastForCurrRound = false;
                     neighborMessagesCount = 0;
                     maxUIDChanged = false;
                 }
 
-                if (numRoundsWithSameUID==3 && maxUID == config.UID) {
-                    System.out.println("I am the leader with UID " + config.UID);
-                    System.out.println("Completed Round " + currentRound);
-                    System.out.println("Max UID, Distance, Maximum Distance is " + maxUID + " " + distance + " " + maxDistance);
+                if (numRoundsWithSameUID==3 ) {
+                    if (maxUID == config.UID) {
+                        System.out.println("I am the leader with UID " + config.UID);
+                        System.out.println("Completed Round " + currentRound);
+                        System.out.println("Max UID, Distance, Maximum Distance is " + maxUID + " " + distance + " " + maxDistance);
+                        break;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -152,10 +192,17 @@ public class LeaderElection {
         }
     }
 
+    /**
+     * Loop through all the object output streams and broadcast the message
+     * @param UID
+     * @param round
+     * @param distance
+     * @param maxDistance
+     */
     public void broadcastMessageToNeighbors(Integer UID, Integer round, Integer distance, Integer maxDistance) {
         try {
             for (ObjectOutputStream outputStream: objectOutputStreams.values()) {
-                outputStream.writeObject(new Message(UID, round, distance, maxDistance));
+                outputStream.writeObject(new LeaderElectionMessage(UID, round, distance, maxDistance));
                 outputStream.flush();
             }
         } catch (IOException e) {
@@ -166,11 +213,13 @@ public class LeaderElection {
 }
 
 class SocketListener implements Runnable {
-    BlockingQueue<Message> queue;
+    BlockingQueue<LeaderElectionMessage> queue;
+    BlockingQueue<BFSMessage> bfsQueue;
     Integer port;
 
-    SocketListener(BlockingQueue<Message> queue, Integer port) {
+    SocketListener(BlockingQueue<LeaderElectionMessage> queue, BlockingQueue<BFSMessage> bfsQueue, Integer port) {
         this.queue = queue;
+        this.bfsQueue = bfsQueue;
         this.port = port;
     }
 
@@ -187,7 +236,7 @@ class SocketListener implements Runnable {
         while (true) {
             try {
                 Socket socket = serverSocket.accept();
-                ClientHandler clientHandler = new ClientHandler(queue, socket);
+                ClientHandler clientHandler = new ClientHandler(queue, bfsQueue, socket);
                 Thread clientHandlerThread = new Thread(clientHandler);
                 clientHandlerThread.start();
             } catch (IOException e) {
@@ -199,12 +248,16 @@ class SocketListener implements Runnable {
 }
 
 class ClientHandler implements Runnable {
-    BlockingQueue<Message> queue;
+    BlockingQueue<LeaderElectionMessage> queue;
+    BlockingQueue<BFSMessage> bfsQueue;
     Socket socket;
+    Boolean bfsMessageSeen;
 
-    ClientHandler(BlockingQueue<Message> queue, Socket socket) {
+    ClientHandler(BlockingQueue<LeaderElectionMessage> queue, BlockingQueue<BFSMessage> bfsQueue, Socket socket) {
         this.queue = queue;
+        this.bfsQueue = bfsQueue;
         this.socket = socket;
+        this.bfsMessageSeen = false;
     }
 
     @Override
@@ -217,11 +270,27 @@ class ClientHandler implements Runnable {
             e.printStackTrace();
         }
 
+        // Keep accepting message and add it to the Blocking Queue
         while (true) {
             try {
                 Object inputObject = inputStream.readObject();
-                Message message = (Message) inputObject;
-                queue.offer(message);
+
+                if (!bfsMessageSeen) {
+                    try {
+                        LeaderElectionMessage message = (LeaderElectionMessage) inputObject;
+                        queue.offer(message);
+                    } catch (ClassCastException e) {
+                        LeaderElectionMessage stopMessage = new LeaderElectionMessage(-1, 0, 0, 0);
+                        queue.offer(stopMessage);
+
+                        BFSMessage message = (BFSMessage) inputObject;
+                        bfsQueue.offer(message);
+                        bfsMessageSeen = true;
+                    }
+                } else {
+                    BFSMessage message = (BFSMessage) inputObject;
+                    bfsQueue.offer(message);
+                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
