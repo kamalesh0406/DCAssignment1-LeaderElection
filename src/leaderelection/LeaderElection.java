@@ -64,15 +64,14 @@ public class LeaderElection {
         for (Entry<String, Integer> neighborDetails: config.neighbors.entrySet()) {
             Socket socketToNeighbor = null;
 
-            // The neighbors server might not have started yet, so we perform a Retry storm with 
-            // a 20ms delay until we get connected.
+            // The neighbors server might not have started yet, so we perform a Retry storm to create the connection.
             while (true) {
                 try {
                     socketToNeighbor = new Socket(neighborDetails.getKey(), neighborDetails.getValue());
                     break;
                 } catch (Exception e) {
                     try {
-                        Thread.sleep(20);
+                        Thread.sleep(5);
                     } catch (InterruptedException e1) {
                         e1.printStackTrace();
                     }
@@ -162,7 +161,7 @@ public class LeaderElection {
                     }
                 }
 
-                if (neighborMessagesCount == config.neighbors.size() && neighborMessagesCount < 4) {
+                if (neighborMessagesCount == config.neighbors.size()) {
                     if (!maxUIDChanged) {
                         numRoundsWithSameUID++;
                     } else {
@@ -178,7 +177,7 @@ public class LeaderElection {
                     maxUIDChanged = false;
                 }
 
-                if (numRoundsWithSameUID==3 ) {
+                if (numRoundsWithSameUID==3) {
                     if (maxUID == config.UID) {
                         System.out.println("I am the leader with UID " + config.UID);
                         System.out.println("Completed Round " + currentRound);
