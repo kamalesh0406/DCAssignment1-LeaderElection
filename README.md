@@ -10,6 +10,8 @@ Team members: Kamalesh Palanisamy(kxp210004), Vignesh Thirunavukkarasu(vxt200003
 - Although the bin files are included, they might not work due to version conflicts and platform differences.
 - To compile it, please run ```javac -d ./bin @compilepaths.txt``` and then run ```./launcher-mac.sh``` or ```./launcher-linux.sh```. This should have everything up and running.
 
+If you want to test this on your local machine, please replce the DC in config with localhost so that you can simulate a distributed network over your local host.
+
 ## Developer Guide
 
 Before modifying the code, ensure that you have modified the netid in the launcher and cleaner scripts. Ensure that you specify the path to the project correctly as well. To run the code, follow the steps given below (Note that this guide is specifically for Macs):
